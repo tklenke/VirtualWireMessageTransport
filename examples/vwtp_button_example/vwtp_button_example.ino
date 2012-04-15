@@ -1,3 +1,10 @@
+/* Simple Arduindo example program using VirtualWireMessageTransport library
+    for peer to peer networking
+    program sends button-up/button-down message to all known peers on network
+    when receiving a button-up/button-down message, sets output on 
+    pin 13 (built in LED) to HIGH/LOW depending on value of data received.
+*/
+
 #include <VirtualWireMessageTransport.h>
 #include <VirtualWire.h>
 
@@ -11,11 +18,10 @@
 
 
 
+
 //Msg type
 #define MSG_BUTTON_CHANGED 0x01
-
-
-//stuff 
+ 
 byte bButtonStatus = 0;
 
 void setup()
@@ -30,14 +36,15 @@ void setup()
     pinMode(ID0_PIN, INPUT);
     pinMode(BUTTON_PIN, INPUT);
     
+    //I used two arduino's on my test network.  One set to id 0 and the other to id 1 
+    //using grounded or pulled high on pin 2.  
     i = digitalRead(ID0_PIN);
     vwmt_setup(i, RX_PIN, TX_PIN, 5000);
 
     Serial.print("my id:");
     Serial.println(i);
-    
-
         
+    //let's make sure the LED is working as advertised    
     for (i = 0; i < 5; i++)
     {
         digitalWrite(LED13, HIGH);
@@ -78,7 +85,7 @@ void generate_new_message()
     if (digitalRead(BUTTON_PIN) != bButtonStatus)
     {
         bButtonStatus = bButtonStatus ? 0 : 1;
-        Serial.print("gnm:button change to ");
+        Serial.print("gnm:Observed button change to ");
         Serial.println(bButtonStatus);
         vwmt_queue_msg_all( MSG_BUTTON_CHANGED, &bButtonStatus, sizeof(bButtonStatus) ); 
     }
@@ -99,10 +106,12 @@ bool handle_message()
     switch (bMsgType)
     {
         case MSG_BUTTON_CHANGED:
+            Serial.print("hm:Recieved button changed: ");
+            Serial.println(pBuf[0], HEX);
             digitalWrite(LED13, pBuf[0]);
             break;
         default:
-            Serial.print("rhm:no handler for type: ");
+            Serial.print("hm:no handler for type: ");
             Serial.println(bMsgType, HEX);  
             break;
     }

@@ -1,7 +1,10 @@
 // VirtualWireMessageTransport.h
 //
 // Simple Message Transport implementation for Arduino
-// See the README file in this directory fdor documentation
+// 
+// uses VirtualWire library by Mike McCauley
+//  See http://www.open.com.au/mikem/arduino/VirtualWire.pdf 
+//  for full documentation of virtual wire
 // 
 // Author: Tom Klenke (tklenke@gmail.com)
 // Copyright (C) 2012 Thomas R. Klenke
@@ -40,6 +43,8 @@ uint8_t vwmt_get_incoming_buffer_size();
 uint8_t* vwmt_get_incoming_buffer();
 
 //SYSTEM RESERVED VALUES FOR MessageTypes -- I'll start from the biggest and get smaller.  You can use from zero upwards.
+// I use this one for discover of peers.  In my own code, I'm negotiating a shared clock.  But that probably isn't a normal
+// use case.  So I'll leave that out of the library unless someone wants it.
 #define VWMT_MSG_BROADCAST_AGE 0xFF
 
 

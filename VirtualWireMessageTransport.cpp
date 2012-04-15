@@ -47,9 +47,6 @@ byte vwmt_nOutMsgs = 0;
 //Retry Minimums
 #define VWMT_RM_SEND 10
 
-//ages of myself and my peers
-unsigned long vwmt_ulMyAge = 0;
-
 unsigned int vwmt_nBackoff = 1;
 unsigned char vwmt_bClearAir = 0;
 
@@ -138,10 +135,11 @@ bool vwmt_valid_message()
         //checksum okay, now check for validity
         
         if (!(buflen == (vwmt_acInBuf[VWMT_CONTROL_POS]&VWMT_N_BYTES_MASK)))
-            Serial.println("vm:bad buflen");
+            //Serial.println("vm:bad buflen");
+            ;
         else if ( !(vwmt_id == (vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_DEST_MASK)) )
         {
-            Serial.println("vm:bad dest not for me");
+            //Serial.println("vm:bad dest not for me");
             //make sure I know about this source
             if ( ( ((vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4) < VWMT_MAX_IDS ) 
                  && ( !(vwmt_aKnownIds[(vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4])) )
@@ -155,7 +153,8 @@ bool vwmt_valid_message()
         else if (vwmt_id == (vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK))
         {
             //to me...from me!  conflict!  this should not be possible!
-            Serial.println("Conflict!");
+            //Serial.println("Conflict!");
+            ;
         }
         else
         {
@@ -170,8 +169,8 @@ bool vwmt_valid_message()
         }
     }
         
-    Serial.print("vm:bad msg:");
-    vwmt_printBuf( vwmt_acInBuf );
+    //Serial.print("vm:bad msg:");
+    //vwmt_printBuf( vwmt_acInBuf );
     //don't leave garbage lying around
     memset(vwmt_acInBuf,0,VW_MAX_MESSAGE_LEN);
     return false;
@@ -202,7 +201,7 @@ bool vwmt_send_message( uint8_t *pBuf )
  
     }
     
-    Serial.println("sm:max retries waiting for ack on my send");
+    //Serial.println("sm:max retries waiting for ack on my send");
     return false;
 }
 
@@ -272,7 +271,7 @@ bool vwmt_send_my_next_message()
         if (vwmt_send_message( (uint8_t*)&(vwmt_aOutBuf[0]) ))
         {
             //sent successfully -- remove from queue
-            Serial.println("smnm:msg sent");
+            //Serial.println("smnm:msg sent");
             vwmt_pop_queue();
             return true;
         }
@@ -283,6 +282,7 @@ bool vwmt_send_my_next_message()
 void vwmt_network_mx()
 {
     int i;
+    unsigned long ulMyAge = 0;
     
     if (vwmt_nOutMsgs)
         //clean up any old broadcast message
@@ -292,21 +292,21 @@ void vwmt_network_mx()
     if(!vwmt_nOutMsgs && !vwmt_nFriends)
     {
         //nothing in my queue & i have no friends-- send my age to myself (i.e.broadcast my presence)
-        vwmt_ulMyAge = micros();
-        Serial.print("nmx:broadcasting age ");
-        Serial.println(vwmt_ulMyAge);
-        vwmt_queue_msg( vwmt_id, VWMT_MSG_BROADCAST_AGE, &vwmt_ulMyAge, sizeof(vwmt_ulMyAge) ); 
+        ulMyAge = micros();
+        //Serial.print("nmx:broadcasting age ");
+        //Serial.println(ulMyAge);
+        vwmt_queue_msg( vwmt_id, VWMT_MSG_BROADCAST_AGE, &ulMyAge, sizeof(ulMyAge) ); 
         return;
     }
     
-    Serial.print("nmx:I know about these ids:");
+    /*Serial.print("nmx:I know about these ids:");
     for (i = 0; i < VWMT_MAX_IDS; i++)
         if ( vwmt_aKnownIds[i] )
         {
             Serial.print(" ");
             Serial.print(i);
         }
-    Serial.println();    
+    Serial.println();    */
 }
 
 uint8_t vwmt_get_incoming_message_type()
@@ -354,8 +354,8 @@ bool vwmt_queue_msg( byte bDest, byte bMsgType, void* pBuf, uint8_t bufsz )
     vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_ADDRESS_POS] = (vwmt_id << 4) | bDest;
     vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_MSG_TYPE_POS] = bMsgType;
     memcpy( &(vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_BUF_POS]), pBuf, bufsz );
-    Serial.print("qm:Output Queued->");
-    vwmt_printBuf( vwmt_aOutBuf[vwmt_nOutMsgs] );
+    //Serial.print("qm:Output Queued->");
+    //vwmt_printBuf( vwmt_aOutBuf[vwmt_nOutMsgs] );
     vwmt_nOutMsgs++;
 }
 
