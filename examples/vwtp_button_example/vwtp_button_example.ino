@@ -16,9 +16,6 @@
 #define ID0_PIN 2
 #define BUTTON_PIN 10
 
-
-
-
 //Msg type
 #define MSG_BUTTON_CHANGED 0x01
  
@@ -60,7 +57,12 @@ void setup()
 
 void loop() 
 {
-    vwmt_network_mx();
+    
+    if (!vwmt_network_mx())
+    {
+        Serial.print("Network Mx Error detected: ");
+        Serial.println(vwmt_get_error_buffer());
+    }
     
     if(vwmt_listen_for_message())
     {

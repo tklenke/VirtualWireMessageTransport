@@ -18,7 +18,7 @@ bool vwmt_setup( uint8_t bId, uint8_t rx_pin, uint8_t tx_pin, uint16_t speed );
 
 //you need to call this periodically...like every loop at the top would be best.  
 //handles peer discover, keep alives, shared clocks, stuff like that.
-void vwmt_network_mx(); 
+bool vwmt_network_mx(); 
 
 bool vwmt_listen_for_message();
 
@@ -41,6 +41,8 @@ uint8_t vwmt_get_incoming_buffer_size();
 
 //returns pointer to incoming buffer
 uint8_t* vwmt_get_incoming_buffer();
+
+char* vwmt_get_error_buffer();
 
 //SYSTEM RESERVED VALUES FOR MessageTypes -- I'll start from the biggest and get smaller.  You can use from zero upwards.
 // I use this one for discover of peers.  In my own code, I'm negotiating a shared clock.  But that probably isn't a normal

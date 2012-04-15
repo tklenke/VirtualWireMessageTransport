@@ -8,6 +8,9 @@
 
 #include "VirtualWireMessageTransport.h"
 
+//Uncomment if you want to see debug print traffic on Serial.print
+#define VWMTDEBUG 
+
 //positions of Bytes in the incoming/outgoing message buffers.
 #define VWMT_CONTROL_POS 0
 #define VWMT_ADDRESS_POS 1
@@ -37,8 +40,8 @@ uint8_t vwmt_acInBuf[VW_MAX_MESSAGE_LEN];
 uint8_t vwmt_aOutBuf[VWMT_MAX_OUT_QUEUE][VW_MAX_MESSAGE_LEN];
 byte vwmt_nOutMsgs = 0;
 
-
-
+#define VWMT_ERROR_SZ 32
+char vwmt_szError[VWMT_ERROR_SZ];
 
 //Time Out milliseconds
 // listen for traffic
@@ -55,6 +58,7 @@ unsigned char vwmt_bClearAir = 0;
 unsigned int vwmt_id;
 byte vwmt_aKnownIds[VWMT_MAX_IDS];
 byte vwmt_nFriends = 0;
+byte vwmt_bNewFriend = 0;
 
 /////////////////
 // DEBUG UTILITIES
@@ -90,8 +94,6 @@ void vwmt_printBuf( uint8_t *pBuf )
 // INTERNAL FUNCTIONS
 ////////////////////////
 
-
-
 void vwmt_send_ack()
 {
     #define VWMT_ACK_SZ 3
@@ -110,8 +112,6 @@ void vwmt_send_ack()
     vw_rx_start();
 }
 
-
-
 void vwmt_pop_queue()
 {
     int i;
@@ -122,10 +122,6 @@ void vwmt_pop_queue()
     memset(&(vwmt_aOutBuf[vwmt_nOutMsgs]),0,sizeof(vwmt_aOutBuf[0]));
 }
 
-
-
-
-
 bool vwmt_valid_message()
 {
     uint8_t buflen = VW_MAX_MESSAGE_LEN;
@@ -135,17 +131,24 @@ bool vwmt_valid_message()
         //checksum okay, now check for validity
         
         if (!(buflen == (vwmt_acInBuf[VWMT_CONTROL_POS]&VWMT_N_BYTES_MASK)))
-            //Serial.println("vm:bad buflen");
+        {
+            #ifdef VWMTDEBUG
+            Serial.println("vm:bad buflen");
+            #endif
             ;
+        }
         else if ( !(vwmt_id == (vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_DEST_MASK)) )
         {
-            //Serial.println("vm:bad dest not for me");
+            #ifdef VWMTDEBUG
+            Serial.println("vm:bad dest not for me");
+            #endif
             //make sure I know about this source
             if ( ( ((vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4) < VWMT_MAX_IDS ) 
                  && ( !(vwmt_aKnownIds[(vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4])) )
             {
                 vwmt_aKnownIds[(vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4] = 1;
                 vwmt_nFriends++;
+                vwmt_bNewFriend++;
             }
             //if it's friend broadcasting presence. let him know I heard him.
             vwmt_send_ack();
@@ -153,8 +156,10 @@ bool vwmt_valid_message()
         else if (vwmt_id == (vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK))
         {
             //to me...from me!  conflict!  this should not be possible!
-            //Serial.println("Conflict!");
-            ;
+            #ifdef VWMTDEBUG
+            Serial.println("Conflict!");
+            #endif
+            snprintf(vwmt_szError, VWMT_ERROR_SZ, "vm:id conflict detected");
         }
         else
         {
@@ -164,13 +169,16 @@ bool vwmt_valid_message()
             {
                 vwmt_aKnownIds[(vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4] = 1;
                 vwmt_nFriends++;
+                vwmt_bNewFriend++;
             }
             return true;
         }
     }
-        
-    //Serial.print("vm:bad msg:");
-    //vwmt_printBuf( vwmt_acInBuf );
+    
+    #ifdef VWMTDEBUG   
+    Serial.print("vm:bad msg:");
+    vwmt_printBuf( vwmt_acInBuf );
+    #endif
     //don't leave garbage lying around
     memset(vwmt_acInBuf,0,VW_MAX_MESSAGE_LEN);
     return false;
@@ -201,7 +209,9 @@ bool vwmt_send_message( uint8_t *pBuf )
  
     }
     
-    //Serial.println("sm:max retries waiting for ack on my send");
+    #ifdef VWMTDEBUG
+    Serial.println("sm:max retries waiting for ack on my send");
+    #endif
     return false;
 }
 
@@ -231,6 +241,10 @@ bool vwmt_setup( uint8_t bId, uint8_t rx_pin, uint8_t tx_pin, uint16_t speed )
     memset(vwmt_acInBuf, 0, VW_MAX_MESSAGE_LEN);
     for (i = 0; i < VWMT_MAX_OUT_QUEUE; i++)
         memset(vwmt_aOutBuf[i], 0, VW_MAX_MESSAGE_LEN);
+        
+    #ifdef VWMTDEBUG
+    Serial.println("Debug prints on: comment out #define VWMTDEBUG in VirtualWireMessageTransport.cpp file to silence");
+    #endif
 }
 
 bool vwmt_listen_for_message()
@@ -271,7 +285,9 @@ bool vwmt_send_my_next_message()
         if (vwmt_send_message( (uint8_t*)&(vwmt_aOutBuf[0]) ))
         {
             //sent successfully -- remove from queue
-            //Serial.println("smnm:msg sent");
+            #ifdef VWMTDEBUG
+            Serial.println("smnm:msg sent");
+            #endif
             vwmt_pop_queue();
             return true;
         }
@@ -279,10 +295,14 @@ bool vwmt_send_my_next_message()
     return false;
 }
 
-void vwmt_network_mx()
+bool vwmt_network_mx()
 {
     int i;
     unsigned long ulMyAge = 0;
+    
+    //check for detected errors
+    if (vwmt_szError[0])
+        return false;
     
     if (vwmt_nOutMsgs)
         //clean up any old broadcast message
@@ -296,17 +316,28 @@ void vwmt_network_mx()
         //Serial.print("nmx:broadcasting age ");
         //Serial.println(ulMyAge);
         vwmt_queue_msg( vwmt_id, VWMT_MSG_BROADCAST_AGE, &ulMyAge, sizeof(ulMyAge) ); 
-        return;
+        return true;
     }
     
-    /*Serial.print("nmx:I know about these ids:");
-    for (i = 0; i < VWMT_MAX_IDS; i++)
-        if ( vwmt_aKnownIds[i] )
-        {
-            Serial.print(" ");
-            Serial.print(i);
-        }
-    Serial.println();    */
+    if (vwmt_bNewFriend)
+    {
+        //negotiate shared clock or other stuff we need to agree upon.
+        vwmt_bNewFriend = 0;
+        
+        #ifdef VWMTDEBUG
+        Serial.print("nmx:I know about these ids:");
+        for (i = 0; i < VWMT_MAX_IDS; i++)
+            if ( vwmt_aKnownIds[i] )
+            {
+                Serial.print(" ");
+                Serial.print(i);
+            }
+        Serial.println();
+        #endif
+    }
+    
+
+    return true;
 }
 
 uint8_t vwmt_get_incoming_message_type()
@@ -354,8 +385,10 @@ bool vwmt_queue_msg( byte bDest, byte bMsgType, void* pBuf, uint8_t bufsz )
     vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_ADDRESS_POS] = (vwmt_id << 4) | bDest;
     vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_MSG_TYPE_POS] = bMsgType;
     memcpy( &(vwmt_aOutBuf[vwmt_nOutMsgs][VWMT_BUF_POS]), pBuf, bufsz );
-    //Serial.print("qm:Output Queued->");
-    //vwmt_printBuf( vwmt_aOutBuf[vwmt_nOutMsgs] );
+    #ifdef VWMTDEBUG
+    Serial.print("qm:Output Queued->");
+    vwmt_printBuf( vwmt_aOutBuf[vwmt_nOutMsgs] );
+    #endif
     vwmt_nOutMsgs++;
 }
 
@@ -369,4 +402,7 @@ uint8_t vwmt_get_number_queued_messages()
     return vwmt_nOutMsgs;
 }
 
-
+char* vwmt_get_error_buffer()
+{
+    return ((char*)&vwmt_szError);
+}
