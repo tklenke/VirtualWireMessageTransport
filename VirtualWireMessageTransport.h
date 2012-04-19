@@ -36,6 +36,8 @@ uint8_t vwmt_get_incoming_message_type();
 
 uint8_t vwmt_get_incoming_source_id();
 
+unsigned long vwmt_get_incoming_received_time();
+
 //returns just the length of the data buffer in the incoming message
 uint8_t vwmt_get_incoming_buffer_size();
 
@@ -43,6 +45,16 @@ uint8_t vwmt_get_incoming_buffer_size();
 uint8_t* vwmt_get_incoming_buffer();
 
 char* vwmt_get_error_buffer();
+
+void vwmt_clear_error_buffer();
+
+uint8_t vwmt_get_id_status( uint8_t bId );
+
+uint8_t vwmt_increment_id_status ( uint8_t bId );
+
+uint8_t vwmt_get_my_id();
+
+
 
 //SYSTEM RESERVED VALUES FOR MessageTypes -- I'll start from the biggest and get smaller.  You can use from zero upwards.
 // I use this one for discover of peers.  In my own code, I'm negotiating a shared clock.  But that probably isn't a normal

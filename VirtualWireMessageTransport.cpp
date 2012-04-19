@@ -55,10 +55,15 @@ unsigned char vwmt_bClearAir = 0;
 
 //ids of units on 'network'
 #define VWMT_MAX_IDS 16
-unsigned int vwmt_id;
 byte vwmt_aKnownIds[VWMT_MAX_IDS];
+
+unsigned int vwmt_id;
 byte vwmt_nFriends = 0;
 byte vwmt_bNewFriend = 0;
+
+//Local Time at reception of message
+unsigned long vwmt_ulTimeMsgReceived;
+
 
 /////////////////
 // DEBUG UTILITIES
@@ -128,6 +133,9 @@ bool vwmt_valid_message()
     //read the buffer into inBuf
     if (vw_get_message(vwmt_acInBuf, &buflen))
     {
+        //write the time received
+        vwmt_ulTimeMsgReceived = micros();
+        
         //checksum okay, now check for validity
         
         if (!(buflen == (vwmt_acInBuf[VWMT_CONTROL_POS]&VWMT_N_BYTES_MASK)))
@@ -163,7 +171,7 @@ bool vwmt_valid_message()
         }
         else
         {
-            //it all check's out...make sure I know about this source
+            //it all checks out...make sure I know about this source before passing up
             if ( ( ((vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4) < VWMT_MAX_IDS ) 
                 && ( !(vwmt_aKnownIds[(vwmt_acInBuf[VWMT_ADDRESS_POS]&VWMT_SOURCE_MASK)>>4])) )
             {
@@ -173,6 +181,12 @@ bool vwmt_valid_message()
             }
             return true;
         }
+    }
+    else
+    {
+        #ifdef VWMTDEBUG   
+        Serial.println("vm:invalid checksum ");
+        #endif        
     }
     
     #ifdef VWMTDEBUG   
@@ -188,7 +202,7 @@ bool vwmt_send_message( uint8_t *pBuf )
 {
     int i = 0;  
     uint8_t buflen = VW_MAX_MESSAGE_LEN;
-    
+
     while ( i < VWMT_RM_SEND )
     {
         i++;
@@ -206,9 +220,8 @@ bool vwmt_send_message( uint8_t *pBuf )
                     return true;
             }
         }
- 
     }
-    
+
     #ifdef VWMTDEBUG
     Serial.println("sm:max retries waiting for ack on my send");
     #endif
@@ -239,8 +252,10 @@ bool vwmt_setup( uint8_t bId, uint8_t rx_pin, uint8_t tx_pin, uint16_t speed )
 
     //make sure the buffers are cleared
     memset(vwmt_acInBuf, 0, VW_MAX_MESSAGE_LEN);
+    memset(vwmt_szError, 0, VWMT_ERROR_SZ);
     for (i = 0; i < VWMT_MAX_OUT_QUEUE; i++)
         memset(vwmt_aOutBuf[i], 0, VW_MAX_MESSAGE_LEN);
+        
         
     #ifdef VWMTDEBUG
     Serial.println("Debug prints on: comment out #define VWMTDEBUG in VirtualWireMessageTransport.cpp file to silence");
@@ -309,12 +324,14 @@ bool vwmt_network_mx()
         if ((VWMT_MSG_BROADCAST_AGE == vwmt_aOutBuf[0][VWMT_MSG_TYPE_POS]) && ( vwmt_id == (vwmt_aOutBuf[0][VWMT_ADDRESS_POS]&VWMT_DEST_MASK) ))
             vwmt_pop_queue(); //remove top message on queue
 
-    if(!vwmt_nOutMsgs && !vwmt_nFriends)
+    if( (!vwmt_nOutMsgs) && (!vwmt_nFriends))
     {
         //nothing in my queue & i have no friends-- send my age to myself (i.e.broadcast my presence)
         ulMyAge = micros();
-        //Serial.print("nmx:broadcasting age ");
-        //Serial.println(ulMyAge);
+        #ifdef VWMTDEBUG
+        Serial.print("nmx:broadcasting age ");
+        Serial.println(ulMyAge);
+        #endif
         vwmt_queue_msg( vwmt_id, VWMT_MSG_BROADCAST_AGE, &ulMyAge, sizeof(ulMyAge) ); 
         return true;
     }
@@ -347,7 +364,7 @@ uint8_t vwmt_get_incoming_message_type()
 
 uint8_t vwmt_get_incoming_source_id()
 {
-    return vwmt_acInBuf[ VWMT_ADDRESS_POS&VWMT_SOURCE_MASK ];
+    return ( (vwmt_acInBuf[ VWMT_ADDRESS_POS ]&VWMT_SOURCE_MASK)>>4 );
 }
 
 //returns just the length of the data buffer in the incoming message
@@ -365,9 +382,16 @@ uint8_t* vwmt_get_incoming_buffer()
 void vwmt_queue_msg_all( byte bMsgType, void* pBuf, uint8_t bufsz )
 {
     int i;
+
     for (i = 0; i < VWMT_MAX_IDS; i++)
-        if ( i != vwmt_id && vwmt_aKnownIds[i] )
+        if ( (i != vwmt_id) && (vwmt_aKnownIds[i]) )
+        {
+            #ifdef VWMTDEBUG
+            Serial.print("qma: to id: ");
+            Serial.println(i);
+            #endif
             vwmt_queue_msg( i, bMsgType, pBuf, bufsz );
+        }
 }
 
 bool vwmt_queue_msg( byte bDest, byte bMsgType, void* pBuf, uint8_t bufsz )
@@ -405,4 +429,34 @@ uint8_t vwmt_get_number_queued_messages()
 char* vwmt_get_error_buffer()
 {
     return ((char*)&vwmt_szError);
+}
+
+void vwmt_clear_error_buffer()
+{
+    memset(vwmt_szError, 0, VWMT_ERROR_SZ);
+}
+
+unsigned long vwmt_get_incoming_received_time()
+{
+    return vwmt_ulTimeMsgReceived;
+}
+
+uint8_t vwmt_get_id_status( uint8_t bId )
+{
+    return vwmt_aKnownIds[bId];
+}
+
+uint8_t vwmt_increment_id_status ( uint8_t bId )
+{
+    if ( bId < VWMT_MAX_IDS )
+    {
+        vwmt_aKnownIds[bId]++;
+        return vwmt_aKnownIds[bId];
+    }
+    return 0;
+}
+
+uint8_t vwmt_get_my_id()
+{
+    return vwmt_id;
 }
